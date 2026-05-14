@@ -28,11 +28,11 @@
             <?= CsrfMiddleware::field() ?>
             <input type="hidden" name="token" value="<?= htmlspecialchars($token ?? '', ENT_QUOTES, 'UTF-8') ?>">
             <div class="mb-3">
-                <label class="form-label">New Password</label>
+                <label class="form-label">New Password <span class="text-danger">*</span></label>
                 <input type="password" name="password" class="form-control" placeholder="Min 8 characters" required minlength="8">
             </div>
             <div class="mb-4">
-                <label class="form-label">Confirm Password</label>
+                <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
                 <input type="password" name="password_confirm" class="form-control" placeholder="Re-enter password" required>
             </div>
             <button type="submit" class="btn btn-primary w-100">Reset Password</button>

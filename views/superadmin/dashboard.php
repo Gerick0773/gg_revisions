@@ -5,6 +5,8 @@ $breadcrumbs = [['label' => 'Superadmin'], ['label' => 'Dashboard']];
 $sidebarNav = '
 <a class="nav-link active" href="/superadmin/dashboard"><i class="bi bi-shield-lock"></i> Superadmin</a>
 <a class="nav-link" href="/superadmin/users"><i class="bi bi-people-fill"></i> User Management</a>
+<a class="nav-link" href="/superadmin/appointments"><i class="bi bi-calendar-event"></i> Appointments</a>
+<a class="nav-link" href="/superadmin/children"><i class="bi bi-heart"></i> Children</a>
 <hr class="my-2">
 <div class="small text-muted px-3 mb-1">Admin tools</div>
 <a class="nav-link" href="/admin/dashboard"><i class="bi bi-speedometer2"></i> Admin Dashboard</a>
@@ -118,6 +120,8 @@ $sidebarNav = '
             <h6 class="mb-3"><i class="bi bi-shield-lock me-1"></i>Superadmin Actions</h6>
             <div class="d-grid gap-2">
                 <a class="btn btn-primary btn-sm text-start" href="/superadmin/users"><i class="bi bi-people-fill me-2"></i>User Management</a>
+                <a class="btn btn-primary btn-sm text-start" href="/superadmin/appointments"><i class="bi bi-calendar-plus me-2"></i>Appointments</a>
+                <a class="btn btn-primary btn-sm text-start" href="/superadmin/children"><i class="bi bi-heart me-2"></i>My Children</a>
                 <a class="btn btn-outline-primary btn-sm text-start" href="/admin/export/users"><i class="bi bi-download me-2"></i>Export Users CSV</a>
                 <a class="btn btn-outline-primary btn-sm text-start" href="/admin/activity-logs"><i class="bi bi-journal me-2"></i>View Audit Trail</a>
             </div>

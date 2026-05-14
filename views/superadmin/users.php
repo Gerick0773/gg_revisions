@@ -89,30 +89,34 @@ $roleBadgeColor = fn(string $r): string => match ($r) {
                 <?php foreach ($users as $u):
                     $isDoctor = in_array($u['user_type'], ['DOCTOR', 'DOCTOR_OWNER'], true);
                     $isSelf = (int) $u['id'] === (int) ($user['id'] ?? 0);
+                    $availableRoles = array_values(array_filter(['PARENT', 'ADMIN', 'SUPERADMIN'], fn($r) => $r !== $u['user_type']));
                 ?>
-                <tr>
+                <tr data-user='<?= htmlspecialchars(json_encode($u), ENT_QUOTES, 'UTF-8') ?>'>
                     <td><strong><?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?></strong><?= $isSelf ? ' <span class="badge bg-secondary ms-1">you</span>' : '' ?></td>
                     <td><?= htmlspecialchars($u['email']) ?></td>
-                    <td><span class="badge" style="background:<?= $roleBadgeColor($u['user_type']) ?>"><?= htmlspecialchars($u['user_type']) ?></span></td>
+                    <td>
+                        <?php if ($isDoctor || $isSelf): ?>
+                            <span class="badge" style="background:<?= $roleBadgeColor($u['user_type']) ?>"><?= htmlspecialchars($u['user_type']) ?></span>
+                            <?php if ($isDoctor): ?><i class="bi bi-lock-fill text-muted ms-1" title="Doctor role is locked"></i><?php endif; ?>
+                        <?php else: ?>
+                            <select class="form-select form-select-sm role-select" data-user-id="<?= $u['id'] ?>" data-current="<?= htmlspecialchars($u['user_type']) ?>" onchange="onRoleChange(this)" style="min-width:140px;">
+                                <option value="<?= htmlspecialchars($u['user_type']) ?>" selected><?= htmlspecialchars($u['user_type']) ?> (current)</option>
+                                <?php foreach ($availableRoles as $role): ?>
+                                    <option value="<?= $role ?>">Change to <?= $role ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php endif; ?>
+                    </td>
                     <td><span class="badge" style="background:<?= match($u['status']) { 'active' => '#28a745', 'inactive' => '#ffc107', default => '#dc3545' } ?>"><?= htmlspecialchars($u['status']) ?></span></td>
                     <td style="font-size:.85rem;"><?= date('M j, Y', strtotime($u['created_at'])) ?></td>
                     <td class="text-end">
                         <div class="dropdown">
                             <button class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <?php if ($isDoctor): ?>
-                                    <li><span class="dropdown-item-text text-muted small"><i class="bi bi-lock me-1"></i>Doctor account — role locked</span></li>
-                                <?php elseif ($isSelf): ?>
+                                <?php if ($isSelf): ?>
                                     <li><span class="dropdown-item-text text-muted small"><i class="bi bi-lock me-1"></i>You can't modify your own account</span></li>
                                 <?php else: ?>
-                                    <li><h6 class="dropdown-header">Change role to</h6></li>
-                                    <?php foreach (['PARENT', 'ADMIN', 'SUPERADMIN'] as $role): ?>
-                                        <?php if ($role === $u['user_type']) continue; ?>
-                                        <li><a class="dropdown-item" href="#" onclick="changeRole(<?= $u['id'] ?>, '<?= $role ?>'); return false;"><i class="bi bi-arrow-repeat me-2"></i><?= $role ?></a></li>
-                                    <?php endforeach; ?>
-                                    <li><hr class="dropdown-divider"></li>
-                                <?php endif; ?>
-                                <?php if (!$isSelf): ?>
+                                    <li><a class="dropdown-item" href="#" onclick="openEditModal(<?= $u['id'] ?>); return false;"><i class="bi bi-pencil me-2"></i>Edit</a></li>
                                     <?php if ($u['status'] === 'active'): ?>
                                         <li><a class="dropdown-item" href="#" onclick="toggleStatus(<?= $u['id'] ?>, 'inactive'); return false;"><i class="bi bi-x-circle me-2"></i>Deactivate</a></li>
                                     <?php else: ?>
@@ -150,13 +154,76 @@ $roleBadgeColor = fn(string $r): string => match ($r) {
     <?php endif; ?>
 </div>
 
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" name="user_id" id="editUserId">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">First Name <span class="text-danger">*</span></label>
+                            <input type="text" name="first_name" id="editFirstName" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Last Name <span class="text-danger">*</span></label>
+                            <input type="text" name="last_name" id="editLastName" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email <span class="text-danger">*</span></label>
+                        <input type="email" name="email" id="editEmail" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" name="phone" id="editPhone" class="form-control">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Role</label>
+                            <select name="user_type" id="editUserType" class="form-select">
+                                <option value="PARENT">Parent</option>
+                                <option value="ADMIN">Admin</option>
+                                <option value="SUPERADMIN">Superadmin</option>
+                            </select>
+                            <small class="text-muted" id="editRoleHint"></small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Status</label>
+                            <select name="status" id="editStatus" class="form-select">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" onclick="submitEditUser()">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php ob_start(); ?>
 <script>
-async function changeRole(userId, newRole) {
+function onRoleChange(select) {
+    const userId = select.dataset.userId;
+    const current = select.dataset.current;
+    const newRole = select.value;
+    if (newRole === current) return;
     showConfirm(`Change this user's role to "${newRole}"?`, async () => {
         const result = await apiRequest('/superadmin/users/change-role', 'POST', { user_id: userId, user_type: newRole });
         if (result.success) { showToast(result.message, 'success'); setTimeout(() => location.reload(), 800); }
-    });
+        else { select.value = current; }
+    }, () => { select.value = current; });
 }
 
 async function toggleStatus(userId, status) {
@@ -171,6 +238,52 @@ async function deleteUser(userId) {
         const result = await apiRequest('/superadmin/users/delete', 'POST', { user_id: userId });
         if (result.success) { showToast(result.message, 'success'); setTimeout(() => location.reload(), 800); }
     });
+}
+
+function openEditModal(userId) {
+    const row = document.querySelector(`tr[data-user] [data-user-id="${userId}"]`)?.closest('tr')
+              || [...document.querySelectorAll('tr[data-user]')].find(r => JSON.parse(r.dataset.user).id == userId);
+    if (!row) { showToast('Could not load user.', 'error'); return; }
+    const u = JSON.parse(row.dataset.user);
+    const isDoctor = ['DOCTOR', 'DOCTOR_OWNER'].includes(u.user_type);
+
+    document.getElementById('editUserId').value = u.id;
+    document.getElementById('editFirstName').value = u.first_name || '';
+    document.getElementById('editLastName').value = u.last_name || '';
+    document.getElementById('editEmail').value = u.email || '';
+    document.getElementById('editPhone').value = u.phone || '';
+    document.getElementById('editStatus').value = u.status || 'active';
+
+    const roleSelect = document.getElementById('editUserType');
+    const roleHint = document.getElementById('editRoleHint');
+    if (isDoctor) {
+        // Lock doctor role — superadmins can't change a doctor's role
+        roleSelect.innerHTML = `<option value="${u.user_type}">${u.user_type}</option>`;
+        roleSelect.value = u.user_type;
+        roleSelect.disabled = true;
+        roleHint.textContent = "Doctor roles are locked.";
+    } else {
+        roleSelect.innerHTML = `
+            <option value="PARENT">Parent</option>
+            <option value="ADMIN">Admin</option>
+            <option value="SUPERADMIN">Superadmin</option>`;
+        roleSelect.value = u.user_type;
+        roleSelect.disabled = false;
+        roleHint.textContent = "Promoting into a doctor role must be done via Add Doctor.";
+    }
+
+    new bootstrap.Modal(document.getElementById('editUserModal')).show();
+}
+
+async function submitEditUser() {
+    const form = document.getElementById('editUserForm');
+    const data = Object.fromEntries(new FormData(form).entries());
+    const result = await apiRequest(`/superadmin/users/${data.user_id}/update`, 'POST', data);
+    if (result.success) {
+        showToast(result.message || 'User updated.', 'success');
+        bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+        setTimeout(() => location.reload(), 600);
+    }
 }
 </script>
 <?php $extraScripts = ob_get_clean(); ?>

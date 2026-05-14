@@ -52,6 +52,10 @@ $router->group(['middleware' => [AuthMiddleware::class]], function ($router) {
         $router->post('/superadmin/users/change-role', [SuperadminController::class, 'changeRole']);
         $router->post('/superadmin/users/toggle-status', [SuperadminController::class, 'toggleStatus']);
         $router->post('/superadmin/users/delete', [SuperadminController::class, 'deleteUser']);
+        $router->post('/superadmin/users/{id}/update', [SuperadminController::class, 'updateUser']);
+        $router->get('/superadmin/appointments', [SuperadminController::class, 'appointments']);
+        $router->post('/superadmin/appointments/create', [SuperadminController::class, 'createAppointment']);
+        $router->get('/superadmin/children', [SuperadminController::class, 'children']);
     });
 
     // ─── Admin Routes ───────────────────────────────────────────────

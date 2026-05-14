@@ -44,19 +44,33 @@ class PrescriptionService
             'notes' => $data['notes'] ?? null,
         ]);
 
-        // Notify parent
-        $parentId = $this->db->fetchColumn("SELECT parent_id FROM patients WHERE id = ?", [(int) $data['patient_id']]);
-        if ($parentId) {
-            $patient = $this->db->fetchOne("SELECT first_name FROM patients WHERE id = ?", [(int) $data['patient_id']]);
+        // Notify parent — in-app + email
+        $parent = $this->db->fetchOne(
+            "SELECT u.id, u.email, u.first_name AS parent_first_name, p.first_name AS patient_first_name
+             FROM patients p JOIN users u ON u.id = p.parent_id WHERE p.id = ?",
+            [(int) $data['patient_id']]
+        );
+        if ($parent) {
+            $message = "A new prescription ({$prescriptionNumber}) has been created for {$parent['patient_first_name']}.";
             $this->notificationModel->createNotification(
-                (int) $parentId,
+                (int) $parent['id'],
                 'New Prescription',
-                "A new prescription ({$prescriptionNumber}) has been created for {$patient['first_name']}.",
+                $message,
                 'SYSTEM',
-                'IN_APP',
+                'ALL',
                 'prescription',
                 $prescriptionId
             );
+
+            if (!empty($parent['email'])) {
+                $emailBody = "
+                    <h2 style='color:#FF6B9A;margin-top:0;'>New Prescription</h2>
+                    <p>Hi " . htmlspecialchars($parent['parent_first_name']) . ",</p>
+                    <p>{$message}</p>
+                    <p>You can view and print it from your PediCare parent dashboard.</p>
+                ";
+                (new NotificationService())->sendEmail($parent['email'], 'New Prescription - PediCare Clinic', $emailBody);
+            }
         }
 
         $this->activityLog->log('PRESCRIPTION_CREATED', $doctorId, 'prescription', $prescriptionId,

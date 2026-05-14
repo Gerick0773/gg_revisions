@@ -8,6 +8,7 @@ use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\ActivityLog;
 use App\Models\Notification;
+use App\Services\NotificationService;
 use App\Core\Database;
 use RuntimeException;
 
@@ -17,6 +18,7 @@ class AppointmentService
     private Patient $patientModel;
     private ActivityLog $activityLog;
     private Notification $notificationModel;
+    private NotificationService $notificationService;
     private Database $db;
 
     public function __construct()
@@ -25,6 +27,7 @@ class AppointmentService
         $this->patientModel = new Patient();
         $this->activityLog = new ActivityLog();
         $this->notificationModel = new Notification();
+        $this->notificationService = new NotificationService();
         $this->db = Database::getInstance();
     }
 
@@ -293,6 +296,9 @@ class AppointmentService
 
     /**
      * Send notifications for appointment events.
+     *
+     * Creates an in-app notification AND emails the parent/doctor so they
+     * also get a copy in their inbox (e.g. "Appointment Confirmed").
      */
     private function sendAppointmentNotifications(int $appointmentId, string $event): void
     {
@@ -301,9 +307,14 @@ class AppointmentService
             return;
         }
 
-        $parentId = $this->db->fetchColumn(
-            "SELECT parent_id FROM patients WHERE id = ?",
+        $parent = $this->db->fetchOne(
+            "SELECT u.id, u.email, u.first_name AS parent_first_name, u.last_name AS parent_last_name
+             FROM patients p JOIN users u ON u.id = p.parent_id WHERE p.id = ?",
             [$appointment['patient_id']]
+        );
+        $doctor = $this->db->fetchOne(
+            "SELECT id, email, first_name, last_name FROM users WHERE id = ?",
+            [$appointment['doctor_id']]
         );
 
         $titles = [
@@ -311,34 +322,117 @@ class AppointmentService
             'confirmed' => 'Appointment Confirmed',
             'cancelled' => 'Appointment Cancelled',
             'completed' => 'Appointment Completed',
+            'in_progress' => 'Appointment In Progress',
+            'no_show' => 'Appointment Marked No-Show',
+            'waitlisted' => 'Appointment Waitlisted',
         ];
 
         $title = $titles[$event] ?? 'Appointment Update';
         $date = date('M j, Y', strtotime($appointment['appointment_date']));
         $time = date('g:i A', strtotime($appointment['appointment_time']));
+        $type = $appointment['type'] ?? 'CONSULTATION';
+        $doctorName = "Dr. {$appointment['doctor_first_name']} {$appointment['doctor_last_name']}";
+        $patientName = trim($appointment['patient_first_name'] . ' ' . $appointment['patient_last_name']);
 
-        // Notify parent
-        if ($parentId) {
+        // Notify parent (in-app + email)
+        if ($parent) {
+            $parentMessage = "Appointment for {$appointment['patient_first_name']} on {$date} at {$time} has been {$event}.";
+
             $this->notificationModel->createNotification(
-                (int) $parentId,
+                (int) $parent['id'],
                 $title,
-                "Appointment for {$appointment['patient_first_name']} on {$date} at {$time} has been {$event}.",
+                $parentMessage,
                 'APPOINTMENT',
-                'IN_APP',
+                'ALL',
                 'appointment',
                 $appointmentId
             );
+
+            if (!empty($parent['email'])) {
+                $body = $this->buildAppointmentEmailBody(
+                    title: $title,
+                    greeting: "Hi {$parent['parent_first_name']},",
+                    intro: $parentMessage,
+                    patientName: $patientName,
+                    date: $date,
+                    time: $time,
+                    type: $type,
+                    counterpart: $doctorName,
+                    reason: $appointment['reason'] ?? null,
+                    cancellationReason: $appointment['cancellation_reason'] ?? null
+                );
+                $this->notificationService->sendEmail($parent['email'], "{$title} - PediCare Clinic", $body);
+            }
         }
 
-        // Notify doctor
-        $this->notificationModel->createNotification(
-            (int) $appointment['doctor_id'],
-            $title,
-            "Appointment with {$appointment['patient_first_name']} {$appointment['patient_last_name']} on {$date} at {$time}.",
-            'APPOINTMENT',
-            'IN_APP',
-            'appointment',
-            $appointmentId
-        );
+        // Notify doctor (in-app + email)
+        if ($doctor) {
+            $doctorMessage = "Appointment with {$patientName} on {$date} at {$time} has been {$event}.";
+
+            $this->notificationModel->createNotification(
+                (int) $doctor['id'],
+                $title,
+                $doctorMessage,
+                'APPOINTMENT',
+                'ALL',
+                'appointment',
+                $appointmentId
+            );
+
+            if (!empty($doctor['email'])) {
+                $body = $this->buildAppointmentEmailBody(
+                    title: $title,
+                    greeting: "Hi Dr. {$doctor['first_name']},",
+                    intro: $doctorMessage,
+                    patientName: $patientName,
+                    date: $date,
+                    time: $time,
+                    type: $type,
+                    counterpart: $parent ? "{$parent['parent_first_name']} {$parent['parent_last_name']}" : 'Parent',
+                    reason: $appointment['reason'] ?? null,
+                    cancellationReason: $appointment['cancellation_reason'] ?? null
+                );
+                $this->notificationService->sendEmail($doctor['email'], "{$title} - PediCare Clinic", $body);
+            }
+        }
+    }
+
+    /**
+     * Build the HTML body for an appointment-event email.
+     */
+    private function buildAppointmentEmailBody(
+        string $title,
+        string $greeting,
+        string $intro,
+        string $patientName,
+        string $date,
+        string $time,
+        string $type,
+        string $counterpart,
+        ?string $reason,
+        ?string $cancellationReason
+    ): string {
+        $reasonRow = $reason
+            ? "<tr><td style='padding:6px 0;color:#777;'>Reason</td><td style='padding:6px 0;'>" . htmlspecialchars($reason) . "</td></tr>"
+            : '';
+        $cancelRow = $cancellationReason
+            ? "<tr><td style='padding:6px 0;color:#777;'>Cancellation reason</td><td style='padding:6px 0;'>" . htmlspecialchars($cancellationReason) . "</td></tr>"
+            : '';
+
+        return "
+            <h2 style='color:#FF6B9A;margin-top:0;'>{$title}</h2>
+            <p>" . htmlspecialchars($greeting) . "</p>
+            <p>" . htmlspecialchars($intro) . "</p>
+            <table style='width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;'>
+                <tr><td style='padding:6px 0;color:#777;'>Patient</td><td style='padding:6px 0;'>" . htmlspecialchars($patientName) . "</td></tr>
+                <tr><td style='padding:6px 0;color:#777;'>With</td><td style='padding:6px 0;'>" . htmlspecialchars($counterpart) . "</td></tr>
+                <tr><td style='padding:6px 0;color:#777;'>Date</td><td style='padding:6px 0;'>" . htmlspecialchars($date) . "</td></tr>
+                <tr><td style='padding:6px 0;color:#777;'>Time</td><td style='padding:6px 0;'>" . htmlspecialchars($time) . "</td></tr>
+                <tr><td style='padding:6px 0;color:#777;'>Type</td><td style='padding:6px 0;'>" . htmlspecialchars($type) . "</td></tr>
+                {$reasonRow}
+                {$cancelRow}
+            </table>
+            <p style='color:#777;font-size:13px;'>You're receiving this email because notifications are enabled for your PediCare account.</p>
+        ";
     }
 }
