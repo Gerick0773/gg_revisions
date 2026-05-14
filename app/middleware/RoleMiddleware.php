@@ -43,7 +43,7 @@ class AdminMiddleware extends RoleMiddleware
 {
     public function __construct()
     {
-        parent::__construct('ADMIN');
+        parent::__construct('ADMIN', 'SUPERADMIN');
     }
 }
 
