@@ -34,17 +34,17 @@
 
             <div class="row mb-3">
                 <div class="col-6">
-                    <label class="form-label">First Name</label>
+                    <label class="form-label">First Name <span class="text-danger">*</span></label>
                     <input type="text" name="first_name" class="form-control" placeholder="First name" required>
                 </div>
                 <div class="col-6">
-                    <label class="form-label">Last Name</label>
+                    <label class="form-label">Last Name <span class="text-danger">*</span></label>
                     <input type="text" name="last_name" class="form-control" placeholder="Last name" required>
                 </div>
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Email Address</label>
+                <label class="form-label">Email Address <span class="text-danger">*</span></label>
                 <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
             </div>
 
@@ -54,14 +54,14 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Password</label>
+                <label class="form-label">Password <span class="text-danger">*</span></label>
                 <input type="password" name="password" id="password" class="form-control" placeholder="Min 8 chars, uppercase, number, special" required minlength="8">
                 <div class="password-strength" id="pwStrength"></div>
                 <small class="text-muted">Must include uppercase, lowercase, number, and special character.</small>
             </div>
 
             <div class="mb-4">
-                <label class="form-label">Confirm Password</label>
+                <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
                 <input type="password" name="password_confirm" id="passwordConfirm" class="form-control" placeholder="Re-enter password" required>
                 <div class="invalid-feedback">Passwords do not match.</div>
             </div>

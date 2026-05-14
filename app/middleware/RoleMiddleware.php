@@ -43,7 +43,15 @@ class AdminMiddleware extends RoleMiddleware
 {
     public function __construct()
     {
-        parent::__construct('ADMIN');
+        parent::__construct('ADMIN', 'SUPERADMIN');
+    }
+}
+
+class SuperadminMiddleware extends RoleMiddleware
+{
+    public function __construct()
+    {
+        parent::__construct('SUPERADMIN');
     }
 }
 
@@ -51,7 +59,7 @@ class DoctorMiddleware extends RoleMiddleware
 {
     public function __construct()
     {
-        parent::__construct('DOCTOR', 'DOCTOR_OWNER');
+        parent::__construct('DOCTOR', 'DOCTOR_OWNER', 'SUPERADMIN');
     }
 }
 
@@ -59,6 +67,6 @@ class ParentMiddleware extends RoleMiddleware
 {
     public function __construct()
     {
-        parent::__construct('PARENT');
+        parent::__construct('PARENT', 'SUPERADMIN');
     }
 }

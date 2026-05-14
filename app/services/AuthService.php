@@ -300,6 +300,7 @@ class AuthService
     private function getDashboardUrl(string $userType): string
     {
         return match ($userType) {
+            'SUPERADMIN' => '/superadmin/dashboard',
             'ADMIN' => '/admin/dashboard',
             'DOCTOR', 'DOCTOR_OWNER' => '/doctor/dashboard',
             'PARENT' => '/parent/dashboard',

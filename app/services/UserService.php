@@ -76,6 +76,135 @@ class UserService
     }
 
     /**
+     * Change a user's role (SUPERADMIN-only action).
+     *
+     * Cannot change the role of an existing doctor, and cannot promote
+     * any user into a doctor role — doctor accounts must be provisioned
+     * through the dedicated createDoctorAccount flow which enforces
+     * license/specialization requirements.
+     */
+    public function changeUserRole(int $userId, string $newRole, int $superadminId): array
+    {
+        if ($userId === $superadminId) {
+            return ['success' => false, 'message' => 'You cannot change your own role.'];
+        }
+
+        $validRoles = ['PARENT', 'DOCTOR', 'DOCTOR_OWNER', 'ADMIN', 'SUPERADMIN'];
+        if (!in_array($newRole, $validRoles, true)) {
+            return ['success' => false, 'message' => 'Invalid role.'];
+        }
+
+        $target = $this->userModel->find($userId);
+        if (!$target) {
+            return ['success' => false, 'message' => 'User not found.'];
+        }
+
+        $currentRole = $target['user_type'];
+
+        if (in_array($currentRole, ['DOCTOR', 'DOCTOR_OWNER'], true)) {
+            return ['success' => false, 'message' => "You can't change the role of a doctor."];
+        }
+
+        if (in_array($newRole, ['DOCTOR', 'DOCTOR_OWNER'], true)) {
+            return ['success' => false, 'message' => 'Doctor accounts must be created via "Add Doctor" so license details are captured.'];
+        }
+
+        if ($currentRole === $newRole) {
+            return ['success' => false, 'message' => 'User already has this role.'];
+        }
+
+        $this->userModel->updateById($userId, ['user_type' => $newRole]);
+        $this->activityLog->log(
+            'USER_ROLE_CHANGED',
+            $superadminId,
+            'user',
+            $userId,
+            "Role changed from $currentRole to $newRole"
+        );
+
+        return ['success' => true, 'message' => "User role changed to {$newRole}."];
+    }
+
+    /**
+     * Update core fields on a user account (SUPERADMIN-only action).
+     * Doctor role cannot be changed away from DOCTOR / DOCTOR_OWNER, and
+     * nobody can be promoted into a doctor role here.
+     */
+    public function updateUserAsSuperadmin(int $userId, array $data, int $superadminId): array
+    {
+        $target = $this->userModel->find($userId);
+        if (!$target) {
+            return ['success' => false, 'message' => 'User not found.'];
+        }
+
+        $allowed = ['first_name', 'last_name', 'email', 'phone', 'user_type', 'status'];
+        $update = array_intersect_key($data, array_flip($allowed));
+
+        if (isset($update['email']) && $update['email'] !== $target['email']) {
+            if ($this->userModel->exists('email', $update['email'], $userId)) {
+                return ['success' => false, 'message' => 'Email is already in use by another account.'];
+            }
+        }
+
+        if (isset($update['user_type']) && $update['user_type'] !== $target['user_type']) {
+            $currentlyDoctor = in_array($target['user_type'], ['DOCTOR', 'DOCTOR_OWNER'], true);
+            $targetDoctor = in_array($update['user_type'], ['DOCTOR', 'DOCTOR_OWNER'], true);
+            if ($currentlyDoctor) {
+                return ['success' => false, 'message' => "You can't change the role of a doctor."];
+            }
+            if ($targetDoctor) {
+                return ['success' => false, 'message' => 'Doctor accounts must be created via "Add Doctor".'];
+            }
+            if ($userId === $superadminId) {
+                return ['success' => false, 'message' => 'You cannot change your own role.'];
+            }
+            $validRoles = ['PARENT', 'DOCTOR', 'DOCTOR_OWNER', 'ADMIN', 'SUPERADMIN'];
+            if (!in_array($update['user_type'], $validRoles, true)) {
+                return ['success' => false, 'message' => 'Invalid role.'];
+            }
+        }
+
+        if (isset($update['status']) && $userId === $superadminId) {
+            unset($update['status']);
+        }
+
+        if (empty($update)) {
+            return ['success' => false, 'message' => 'Nothing to update.'];
+        }
+
+        $this->userModel->updateById($userId, $update);
+
+        $changedFields = implode(', ', array_keys($update));
+        $this->activityLog->log('USER_UPDATED', $superadminId, 'user', $userId, "Fields updated: {$changedFields}");
+
+        return ['success' => true, 'message' => 'User updated successfully.'];
+    }
+
+    /**
+     * Delete a user (SUPERADMIN-only action). Doctors cannot be deleted here.
+     */
+    public function deleteUser(int $userId, int $superadminId): array
+    {
+        if ($userId === $superadminId) {
+            return ['success' => false, 'message' => 'You cannot delete your own account.'];
+        }
+
+        $target = $this->userModel->find($userId);
+        if (!$target) {
+            return ['success' => false, 'message' => 'User not found.'];
+        }
+
+        if (in_array($target['user_type'], ['DOCTOR', 'DOCTOR_OWNER'], true)) {
+            return ['success' => false, 'message' => "You can't delete a doctor account from here."];
+        }
+
+        $this->userModel->deleteById($userId);
+        $this->activityLog->log('USER_DELETED', $superadminId, 'user', $userId, "Deleted user {$target['email']}");
+
+        return ['success' => true, 'message' => 'User deleted successfully.'];
+    }
+
+    /**
      * Bulk update user statuses.
      */
     public function bulkUpdateStatus(array $userIds, string $status, int $adminId): array

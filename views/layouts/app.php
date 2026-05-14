@@ -127,6 +127,9 @@ $csrfToken = CsrfMiddleware::token();
         .empty-state i { font-size: 4rem; color: #ddd; margin-bottom: 20px; }
         .empty-state h5 { color: #999; }
         .empty-state p { color: #bbb; }
+
+        /* Required-field marker (auto-applied via JS to labels of required inputs) */
+        .required-asterisk { color: #dc3545; margin-left: 4px; font-weight: 700; }
     </style>
     <?php if (!empty($extraStyles)): ?>
     <?= $extraStyles ?>
@@ -238,7 +241,7 @@ $csrfToken = CsrfMiddleware::token();
     }
 
     // Confirmation modal (replaces confirm())
-    function showConfirm(message, onConfirm) {
+    function showConfirm(message, onConfirm, onCancel) {
         const modal = document.createElement('div');
         modal.className = 'modal fade';
         modal.innerHTML = `
@@ -258,8 +261,12 @@ $csrfToken = CsrfMiddleware::token();
         `;
         document.body.appendChild(modal);
         const bsModal = new bootstrap.Modal(modal);
-        modal.querySelector('#confirmBtn').onclick = () => { bsModal.hide(); onConfirm(); };
-        modal.addEventListener('hidden.bs.modal', () => modal.remove());
+        let confirmed = false;
+        modal.querySelector('#confirmBtn').onclick = () => { confirmed = true; bsModal.hide(); onConfirm(); };
+        modal.addEventListener('hidden.bs.modal', () => {
+            if (!confirmed && typeof onCancel === 'function') onCancel();
+            modal.remove();
+        });
         bsModal.show();
     }
 
@@ -375,10 +382,46 @@ $csrfToken = CsrfMiddleware::token();
         container.innerHTML = html;
     }
 
+    // Tag labels of required fields with a red asterisk, site-wide.
+    function markRequiredFields(root = document) {
+        root.querySelectorAll('input[required], select[required], textarea[required]').forEach(field => {
+            let label = null;
+            if (field.id) label = root.querySelector(`label[for="${CSS.escape(field.id)}"]`);
+            if (!label) {
+                // Walk previous siblings to find the closest label in the same wrapper
+                let prev = field.previousElementSibling;
+                while (prev && !label) {
+                    if (prev.tagName === 'LABEL') label = prev;
+                    else label = prev.querySelector('label');
+                    prev = prev.previousElementSibling;
+                }
+            }
+            if (!label) {
+                // Look one level up
+                const parentLabel = field.closest('label');
+                if (parentLabel) label = parentLabel;
+            }
+            if (label && !label.querySelector('.required-asterisk')) {
+                const star = document.createElement('span');
+                star.className = 'required-asterisk';
+                star.setAttribute('aria-hidden', 'true');
+                star.textContent = '*';
+                label.appendChild(star);
+            }
+        });
+    }
+
     // Load notifications on page load
     document.addEventListener('DOMContentLoaded', () => {
         loadNotifications();
         setInterval(loadNotifications, 60000); // Refresh every minute
+        markRequiredFields();
+        // Re-run for dynamically inserted forms (e.g. records modal, edit modal)
+        new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                if (m.addedNodes.length) markRequiredFields(document);
+            }
+        }).observe(document.body, { childList: true, subtree: true });
     });
 
     // Inline validation helper

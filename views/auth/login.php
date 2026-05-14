@@ -52,7 +52,7 @@
             <?= CsrfMiddleware::field() ?>
 
             <div class="mb-3">
-                <label class="form-label">Email Address</label>
+                <label class="form-label">Email Address <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-envelope"></i></span>
                     <input type="email" name="email" class="form-control" placeholder="Enter your email" required autofocus>
@@ -60,7 +60,7 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Password</label>
+                <label class="form-label">Password <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-lock"></i></span>
                     <input type="password" name="password" class="form-control" placeholder="Enter your password" required>

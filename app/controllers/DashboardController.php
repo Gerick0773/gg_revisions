@@ -15,6 +15,7 @@ class DashboardController extends Controller
     public function index(): void
     {
         match ($this->userType()) {
+            'SUPERADMIN' => $this->redirect('/superadmin/dashboard'),
             'ADMIN' => $this->redirect('/admin/dashboard'),
             'DOCTOR', 'DOCTOR_OWNER' => $this->redirect('/doctor/dashboard'),
             'PARENT' => $this->redirect('/parent/dashboard'),

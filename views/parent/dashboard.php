@@ -267,6 +267,33 @@ async function viewRecords(patientId) {
                 '</tbody></table>' : '<div class="empty-state py-3"><i class="bi bi-shield-x"></i><p>No vaccination records yet.</p></div>'}
             </div>
             <div class="tab-pane fade" id="p-files">
+                <form id="uploadFileForm-${patientId}" class="card card-body bg-light mb-3" enctype="multipart/form-data" onsubmit="return false;">
+                    <input type="hidden" name="patient_id" value="${patientId}">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label small mb-1">File <span class="text-danger">*</span></label>
+                            <input type="file" name="file" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small mb-1">Category <span class="text-danger">*</span></label>
+                            <select name="file_category" class="form-select form-select-sm" required>
+                                <option value="LAB_RESULT">Lab Result</option>
+                                <option value="MRI">MRI</option>
+                                <option value="XRAY">X-Ray</option>
+                                <option value="PRESCRIPTION">Prescription</option>
+                                <option value="REFERRAL">Referral</option>
+                                <option value="IMMUNIZATION">Immunization</option>
+                                <option value="OTHER" selected>Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-primary btn-sm w-100" onclick="uploadPatientFile(${patientId})"><i class="bi bi-cloud-upload me-1"></i>Upload</button>
+                        </div>
+                        <div class="col-12">
+                            <input type="text" name="description" class="form-control form-control-sm mt-1" placeholder="Description (optional)">
+                        </div>
+                    </div>
+                </form>
                 ${d.files?.length ? d.files.map(f => `
                     <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
                         <div><i class="bi bi-file-earmark me-2"></i>${f.original_filename}<br><small class="text-muted">${f.file_category} - ${(f.file_size/1024).toFixed(1)}KB</small></div>
@@ -276,6 +303,19 @@ async function viewRecords(patientId) {
             </div>
         </div>
     `;
+}
+
+async function uploadPatientFile(patientId) {
+    const form = document.getElementById(`uploadFileForm-${patientId}`);
+    if (!form) return;
+    const fileInput = form.querySelector('input[type="file"]');
+    if (!fileInput.value) { showToast('Please choose a file first.', 'error'); return; }
+
+    const result = await apiRequest('/parent/files/upload', 'POST', new FormData(form));
+    if (result.success) {
+        showToast(result.message || 'File uploaded.', 'success');
+        viewRecords(patientId); // refresh tab
+    }
 }
 
 async function viewVaccinations(patientId) {

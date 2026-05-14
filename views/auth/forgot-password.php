@@ -34,7 +34,7 @@
         <form method="POST" action="/forgot-password">
             <?= CsrfMiddleware::field() ?>
             <div class="mb-3">
-                <label class="form-label">Email Address</label>
+                <label class="form-label">Email Address <span class="text-danger">*</span></label>
                 <input type="email" name="email" class="form-control" placeholder="your@email.com" required autofocus>
             </div>
             <button type="submit" class="btn btn-primary w-100 mb-3">Send Reset Link</button>

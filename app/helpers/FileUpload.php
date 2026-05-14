@@ -31,17 +31,21 @@ class FileUpload
     {
         $this->validateFile($file);
 
+        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $storedFilename = $this->generateFilename($extension);
+
         $targetDir = $this->uploadPath;
         if ($subdir) {
             $targetDir .= '/' . $subdir;
         }
+        // generateFilename can embed sub-paths (e.g. "2026/05/<hex>.pdf"),
+        // so create the full directory tree the file actually lives in.
+        $fullTargetDir = $targetDir . '/' . dirname($storedFilename);
 
-        if (!is_dir($targetDir)) {
-            mkdir($targetDir, 0755, true);
+        if (!is_dir($fullTargetDir) && !mkdir($fullTargetDir, 0755, true) && !is_dir($fullTargetDir)) {
+            throw new \RuntimeException("Failed to create upload directory: {$fullTargetDir}");
         }
 
-        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $storedFilename = $this->generateFilename($extension);
         $targetPath = $targetDir . '/' . $storedFilename;
 
         if (!move_uploaded_file($file['tmp_name'], $targetPath)) {

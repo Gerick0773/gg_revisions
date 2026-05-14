@@ -74,26 +74,34 @@ class VaccinationService
 
             $this->db->commit();
 
-            // Send notification to parent
-            $parentId = $this->db->fetchColumn(
-                "SELECT parent_id FROM patients WHERE id = ?",
+            // Send notification to parent — in-app + email
+            $parent = $this->db->fetchOne(
+                "SELECT u.id, u.email, u.first_name AS parent_first_name, p.first_name AS patient_first_name
+                 FROM patients p JOIN users u ON u.id = p.parent_id WHERE p.id = ?",
                 [(int) $data['patient_id']]
             );
 
-            if ($parentId) {
-                $patientName = $this->db->fetchOne(
-                    "SELECT first_name FROM patients WHERE id = ?",
-                    [(int) $data['patient_id']]
-                );
+            if ($parent) {
+                $message = "{$data['vaccine_name']} (Dose {$data['dose_number']}) has been administered to {$parent['patient_first_name']}.";
                 $this->notificationModel->createNotification(
-                    (int) $parentId,
+                    (int) $parent['id'],
                     'Vaccination Recorded',
-                    "{$data['vaccine_name']} (Dose {$data['dose_number']}) has been administered to {$patientName['first_name']}.",
+                    $message,
                     'VACCINATION',
-                    'IN_APP',
+                    'ALL',
                     'vaccination_record',
                     $recordId
                 );
+
+                if (!empty($parent['email'])) {
+                    $emailBody = "
+                        <h2 style='color:#FF6B9A;margin-top:0;'>Vaccination Recorded</h2>
+                        <p>Hi " . htmlspecialchars($parent['parent_first_name']) . ",</p>
+                        <p>{$message}</p>
+                        <p>The vaccination record is now available in the PediCare parent dashboard.</p>
+                    ";
+                    (new NotificationService())->sendEmail($parent['email'], 'Vaccination Recorded - PediCare Clinic', $emailBody);
+                }
             }
 
             $this->activityLog->log('VACCINATION_RECORDED', $administeredBy, 'vaccination_record', $recordId,
