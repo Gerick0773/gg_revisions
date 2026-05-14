@@ -5,12 +5,14 @@ declare(strict_types=1);
 use App\Controllers\AuthController;
 use App\Controllers\DashboardController;
 use App\Controllers\AdminController;
+use App\Controllers\SuperadminController;
 use App\Controllers\DoctorController;
 use App\Controllers\ParentController;
 use App\Controllers\NotificationController;
 use App\Middleware\AuthMiddleware;
 use App\Middleware\CsrfMiddleware;
 use App\Middleware\AdminMiddleware;
+use App\Middleware\SuperadminMiddleware;
 use App\Middleware\DoctorMiddleware;
 use App\Middleware\ParentMiddleware;
 
@@ -42,6 +44,15 @@ $router->group(['middleware' => [AuthMiddleware::class]], function ($router) {
     $router->get('/api/notifications', [NotificationController::class, 'index']);
     $router->post('/api/notifications/{id}/read', [NotificationController::class, 'markRead']);
     $router->post('/api/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
+    // ─── Superadmin Routes ──────────────────────────────────────────
+    $router->group(['middleware' => [SuperadminMiddleware::class]], function ($router) {
+        $router->get('/superadmin/dashboard', [SuperadminController::class, 'dashboard']);
+        $router->get('/superadmin/users', [SuperadminController::class, 'users']);
+        $router->post('/superadmin/users/change-role', [SuperadminController::class, 'changeRole']);
+        $router->post('/superadmin/users/toggle-status', [SuperadminController::class, 'toggleStatus']);
+        $router->post('/superadmin/users/delete', [SuperadminController::class, 'deleteUser']);
+    });
 
     // ─── Admin Routes ───────────────────────────────────────────────
     $router->group(['middleware' => [AdminMiddleware::class]], function ($router) {

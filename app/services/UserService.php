@@ -76,6 +76,80 @@ class UserService
     }
 
     /**
+     * Change a user's role (SUPERADMIN-only action).
+     *
+     * Cannot change the role of an existing doctor, and cannot promote
+     * any user into a doctor role — doctor accounts must be provisioned
+     * through the dedicated createDoctorAccount flow which enforces
+     * license/specialization requirements.
+     */
+    public function changeUserRole(int $userId, string $newRole, int $superadminId): array
+    {
+        if ($userId === $superadminId) {
+            return ['success' => false, 'message' => 'You cannot change your own role.'];
+        }
+
+        $validRoles = ['PARENT', 'DOCTOR', 'DOCTOR_OWNER', 'ADMIN', 'SUPERADMIN'];
+        if (!in_array($newRole, $validRoles, true)) {
+            return ['success' => false, 'message' => 'Invalid role.'];
+        }
+
+        $target = $this->userModel->find($userId);
+        if (!$target) {
+            return ['success' => false, 'message' => 'User not found.'];
+        }
+
+        $currentRole = $target['user_type'];
+
+        if (in_array($currentRole, ['DOCTOR', 'DOCTOR_OWNER'], true)) {
+            return ['success' => false, 'message' => "You can't change the role of a doctor."];
+        }
+
+        if (in_array($newRole, ['DOCTOR', 'DOCTOR_OWNER'], true)) {
+            return ['success' => false, 'message' => 'Doctor accounts must be created via "Add Doctor" so license details are captured.'];
+        }
+
+        if ($currentRole === $newRole) {
+            return ['success' => false, 'message' => 'User already has this role.'];
+        }
+
+        $this->userModel->updateById($userId, ['user_type' => $newRole]);
+        $this->activityLog->log(
+            'USER_ROLE_CHANGED',
+            $superadminId,
+            'user',
+            $userId,
+            "Role changed from $currentRole to $newRole"
+        );
+
+        return ['success' => true, 'message' => "User role changed to {$newRole}."];
+    }
+
+    /**
+     * Delete a user (SUPERADMIN-only action). Doctors cannot be deleted here.
+     */
+    public function deleteUser(int $userId, int $superadminId): array
+    {
+        if ($userId === $superadminId) {
+            return ['success' => false, 'message' => 'You cannot delete your own account.'];
+        }
+
+        $target = $this->userModel->find($userId);
+        if (!$target) {
+            return ['success' => false, 'message' => 'User not found.'];
+        }
+
+        if (in_array($target['user_type'], ['DOCTOR', 'DOCTOR_OWNER'], true)) {
+            return ['success' => false, 'message' => "You can't delete a doctor account from here."];
+        }
+
+        $this->userModel->deleteById($userId);
+        $this->activityLog->log('USER_DELETED', $superadminId, 'user', $userId, "Deleted user {$target['email']}");
+
+        return ['success' => true, 'message' => 'User deleted successfully.'];
+    }
+
+    /**
      * Bulk update user statuses.
      */
     public function bulkUpdateStatus(array $userIds, string $status, int $adminId): array
